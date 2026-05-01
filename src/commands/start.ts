@@ -57,19 +57,19 @@ export async function handleGeneralCommands(
   if (text.startsWith('/start')) {
     return `👋 **Welcome to RavenHQ, ${firstName}!**\n\n` +
            `Your profile has been successfully registered.\n` +
-           `I am an advanced edge-deployed utility bot designed for high performance.\n\n` +
+           `I am an advanced utility bot designed for high performance.\n\n` +
            `Type /help to discover my capabilities.`;
   }
 
   if (text.startsWith('/help')) {
-    return `🛡️ **RavenHQ Command Center** 🛡️\n\n` +
+    return `🛡️ **RavenHQ** 🛡️\n\n` +
            `🔹 **/start** - Initialize bot & sync profile\n` +
            `🔹 **/help** - Display this command menu\n` +
            `🔹 **/id** - Retrieve your secure Telegram identifiers\n` +
            `🔹 **/gen [BIN] [AMT]** - Generate algorithmic CCs\n` +
            `🔹 **/chk [CC]** - Validate card status\n` +
            `🔹 **/fake** - Generate localized identity data\n\n` +
-           `_Infrastructure powered by Cloudflare Edge & D1 Serverless SQL._`;
+           `_Powered by @DrKingBD._`;
   }
 
   if (text.startsWith('/id')) {
