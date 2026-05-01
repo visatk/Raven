@@ -8,7 +8,6 @@ import { orders } from './db/schema';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// 1. Telegram Webhook
 app.post('/webhook', async (c) => {
   const bot = setupBot(c.env.TELEGRAM_BOT_TOKEN);
   bot.use(async (ctx: BotContext, next) => {
@@ -16,48 +15,49 @@ app.post('/webhook', async (c) => {
     ctx.db = drizzle(c.env.DB);
     await next();
   });
-  const handler = webhookCallback(bot, 'hono');
-  return handler(c);
+  return webhookCallback(bot, 'hono')(c);
 });
 
-// 2. Apirone Live Payment Webhook
+// Secured Apirone Webhook
 app.post('/apirone-callback', async (c) => {
+  const secret = c.req.query('secret');
   const body = await c.req.json();
   
-  // Apirone sends: { invoice: string, status: string, account: string }
   const invoiceId = body.invoice;
   const status = body.status;
 
-  if (!invoiceId || !status) return c.text('*error*', 400);
+  if (!invoiceId || !status || !secret) return c.text('*error*', 400);
 
   const db = drizzle(c.env.DB);
-  
-  // Find the order
   const order = await db.select().from(orders).where(eq(orders.invoiceId, invoiceId)).get();
-  if (!order) return c.text('*ok*', 200); // Acknowledge to stop retries if order not found
+  
+  // Acknowledge unknown invoices to stop Apirone retries
+  if (!order) return c.text('*ok*', 200); 
 
-  // Update order status in D1
+  // Security Check: Validate the secret[cite: 4]
+  if (order.callbackSecret !== secret) return c.text('*error*', 403);
+
+  // Update order status
   await db.update(orders).set({ status: status }).where(eq(orders.invoiceId, invoiceId)).run();
 
-  // If the invoice is fully paid or completed, fulfill the order
+  // Handle successful payment states[cite: 2]
   if (status === 'paid' || status === 'completed') {
-    // Ensure we only notify once
     if (order.status !== 'paid' && order.status !== 'completed') {
       const bot = new Bot(c.env.TELEGRAM_BOT_TOKEN);
       
-      const successMsg = `✅ **PAYMENT SUCCESSFUL**\n\n` +
-        `Order #${order.id} for **${order.productName}** has been confirmed on the blockchain!\n\n` +
-        `Please forward this message to the admin @rcpws to receive your digital assets instantly.`;
+      const successMsg = `✅ **PAYMENT CONFIRMED**\n\n` +
+        `Order \`#${order.id}\` for **${order.productName}** is successful!\n\n` +
+        `Forward this message to @drkingbd to receive your assets instantly.`;
       
       try {
         await bot.api.sendMessage(order.telegramId, successMsg, { parse_mode: "Markdown" });
       } catch (err) {
-        console.error("Failed to notify user via Telegram", err);
+        console.error("Telegram delivery failed", err);
       }
     }
   }
 
-  // Apirone requires strictly "*ok*" as plain text to acknowledge the callback
+  // Apirone requires strictly "*ok*" to acknowledge
   return c.text('*ok*', 200);
 });
 
