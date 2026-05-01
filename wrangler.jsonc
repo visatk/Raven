@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "auth",
+	"name": "net",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-04-29",
 	"compatibility_flags": [
@@ -12,14 +12,14 @@
     "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "personal-bot",
-      "database_id": "3f72b578-a57d-4262-88f1-58e5bc1b4ba4"
+      "database_name": "netbot",
+      "database_id": "280a608f-b079-4bc4-b1b3-0f2dea8c7e75"
     }
   ],
    "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "xxxxxxxxxxxxxxx"
+      "id": "1e5b75dbf4084655b523878f92da0b00"
     }
   ]
 }
