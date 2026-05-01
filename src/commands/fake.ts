@@ -1,66 +1,75 @@
 import { Env } from "../types";
 import { sendMessage } from "../utils/telegram";
 
-// Map common 2-letter country inputs to FakerAPI.it supported locales
-// FakerAPI uses standard language_COUNTRY formats
-const localeMap: Record<string, string> = {
-  us: 'en_US', uk: 'en_GB', gb: 'en_GB', ca: 'en_CA', au: 'en_AU', 
-  de: 'de_DE', fr: 'fr_FR', it: 'it_IT', es: 'es_ES', mx: 'es_MX',
-  br: 'pt_BR', ru: 'ru_RU', jp: 'ja_JP', cn: 'zh_CN', in: 'en_IN', 
-  bd: 'en_US', // Fallback to en_US for unsupported specific regions
-  za: 'en_ZA', ng: 'en_NG', nl: 'nl_NL', se: 'sv_SE',
-  ch: 'de_CH', dk: 'da_DK', fi: 'fi_FI', ie: 'en_IE', ir: 'fa_IR',
-  no: 'nb_NO', nz: 'en_NZ', rs: 'sr_RS_latin', tr: 'tr_TR', ua: 'uk_UA'
-};
-
-// Map inputs to emoji flags for the UI
-const flagMap: Record<string, string> = {
-  us: '🇺🇸', uk: '🇬🇧', gb: '🇬🇧', ca: '🇨🇦', au: '🇦🇺', 
-  de: '🇩🇪', fr: '🇫🇷', it: '🇮🇹', es: '🇪🇸', mx: '🇲🇽',
-  br: '🇧🇷', ru: '🇷🇺', jp: '🇯🇵', cn: '🇨🇳', in: '🇮🇳', 
-  bd: '🇧🇩', za: '🇿🇦', ng: '🇳🇬', nl: '🇳🇱', se: '🇸🇪',
-  ch: '🇨🇭', dk: '🇩🇰', fi: '🇫🇮', ie: '🇮🇪', ir: '🇮🇷',
-  no: '🇳🇴', nz: '🇳🇿', rs: '🇷🇸', tr: '🇹🇷', ua: '🇺🇦'
+// Comprehensive mapping for FakerAPI.it v2 supported locales
+// This maps user input to the correct _locale parameter and UI elements
+const regionMap: Record<string, { locale: string; name: string; flag: string }> = {
+  us: { locale: 'en_US', name: 'United States', flag: '🇺🇸' },
+  uk: { locale: 'en_GB', name: 'United Kingdom', flag: '🇬🇧' },
+  gb: { locale: 'en_GB', name: 'United Kingdom', flag: '🇬🇧' },
+  ca: { locale: 'en_CA', name: 'Canada', flag: '🇨🇦' },
+  au: { locale: 'en_AU', name: 'Australia', flag: '🇦🇺' },
+  de: { locale: 'de_DE', name: 'Germany', flag: '🇩🇪' },
+  fr: { locale: 'fr_FR', name: 'France', flag: '🇫🇷' },
+  it: { locale: 'it_IT', name: 'Italy', flag: '🇮🇹' },
+  es: { locale: 'es_ES', name: 'Spain', flag: '🇪🇸' },
+  mx: { locale: 'es_MX', name: 'Mexico', flag: '🇲🇽' },
+  br: { locale: 'pt_BR', name: 'Brazil', flag: '🇧🇷' },
+  ru: { locale: 'ru_RU', name: 'Russia', flag: '🇷🇺' },
+  jp: { locale: 'ja_JP', name: 'Japan', flag: '🇯🇵' },
+  cn: { locale: 'zh_CN', name: 'China', flag: '🇨🇳' },
+  in: { locale: 'en_IN', name: 'India', flag: '🇮🇳' },
+  bd: { locale: 'bn_BD', name: 'Bangladesh', flag: '🇧🇩' },
+  za: { locale: 'en_ZA', name: 'South Africa', flag: '🇿🇦' },
+  ng: { locale: 'en_NG', name: 'Nigeria', flag: '🇳🇬' },
+  nl: { locale: 'nl_NL', name: 'Netherlands', flag: '🇳🇱' },
+  se: { locale: 'sv_SE', name: 'Sweden', flag: '🇸🇪' }
 };
 
 export async function handleFake(args: string[], chatId: number, env: Env): Promise<void> {
-  // Default to US if no argument is provided
-  let inputCode = (args[0] || "us").toLowerCase();
-  
-  if (inputCode === 'uk') inputCode = 'gb';
-
-  // Resolve the locale or fallback to English (US)
-  const locale = localeMap[inputCode] || 'en_US';
-  const flag = flagMap[inputCode] || '🏳️';
+  // Default to US if no argument or an invalid argument is provided
+  const inputCode = (args[0] || "us").toLowerCase();
+  const region = regionMap[inputCode] || regionMap["us"];
 
   try {
-    // Fetch data from FakerAPI.it using Cloudflare's native fetch
-    const response = await fetch(`https://fakerapi.it/api/v1/persons?_quantity=1&_locale=${locale}`, {
+    // We use the /persons endpoint because it returns Identity + Nested Address Data
+    // Passing _locale guarantees localized names, phones, and addresses.
+    const url = `https://fakerapi.it/api/v2/persons?_quantity=1&_locale=${region.locale}`;
+    
+    const response = await fetch(url, {
+      method: "GET",
       headers: {
         "Accept": "application/json",
-        "User-Agent": "Nexus-Infrastructure-Bot/3.0"
+        "User-Agent": "Nexus-Infrastructure-Bot/2.0"
       }
     });
 
     if (!response.ok) {
-      throw new Error(`API returned ${response.status}`);
+      throw new Error(`FakerAPI returned HTTP ${response.status}`);
     }
 
-    const data = await response.json<any>();
-    const user = data.data[0];
+    const json = await response.json<any>();
+    
+    if (!json.data || json.data.length === 0) {
+      throw new Error("Empty data array returned from API");
+    }
 
-    // Extract and format variables gracefully based on FakerAPI's schema
-    const name = `${user.firstname} ${user.lastname}`;
-    const gender = user.gender ? user.gender.charAt(0).toUpperCase() + user.gender.slice(1) : 'Unknown';
-    const street = user.address?.street || "N/A";
-    const city = user.address?.city || "N/A";
-    const state = user.address?.state || city; // FakerAPI sometimes omits state, fallback to city
-    const zip = String(user.address?.zipcode || "N/A");
-    const country = user.address?.country || "N/A";
-    const phone = user.phone || "N/A";
+    const person = json.data[0];
+    const addr = person.address || {};
 
-    // Exact match to the requested UI, with <code> tags added to values for tap-to-copy
-    const output = `📍 <b>Address For ${flag} ${country}</b>
+    // Extract and safely format variables
+    const name = `${person.firstname} ${person.lastname}`;
+    const gender = person.gender ? (person.gender.charAt(0).toUpperCase() + person.gender.slice(1)) : "Unknown";
+    const phone = person.phone || "N/A";
+    
+    // FakerAPI.it handles addresses dynamically based on region; we map available fields safely
+    const street = addr.street || `${addr.buildingNumber || ''} ${addr.streetName || ''}`.trim() || 'N/A';
+    const city = addr.city || 'N/A';
+    const state = addr.county_code || 'N/A'; // 'county_code' often acts as the State/Province in FakerAPI
+    const zip = String(addr.zipcode || 'N/A');
+
+    // Retain exact UI layout from the screenshot with tap-to-copy <code> blocks
+    const output = `📍 <b>Address For ${region.flag} ${region.name}</b>
 ———————————————
 • <b>Name</b> : <code>${name}</code>
 • <b>Gender</b> : ${gender}
@@ -68,11 +77,11 @@ export async function handleFake(args: string[], chatId: number, env: Env): Prom
 • <b>City/Town/Village</b> : <code>${city}</code>
 • <b>State</b> : <code>${state}</code>
 • <b>Postal Code</b> : <code>${zip}</code>
-• <b>Country</b> : ${country}
+• <b>Country</b> : ${region.name}
 • <b>Phone</b> : <code>${phone}</code>
 ———————————————`;
 
-    // Add the interactive regenerate button 
+    // Interactive Regenerate button tied to the specific country code
     const markup = {
       inline_keyboard: [
         [{ text: `🔄 Regenerate ${inputCode.toUpperCase()}`, callback_data: `fake_${inputCode}` }]
@@ -82,7 +91,7 @@ export async function handleFake(args: string[], chatId: number, env: Env): Prom
     await sendMessage(env, chatId, output, markup);
 
   } catch (error) {
-    console.error("Error:", error);
-    await sendMessage(env, chatId, "❌ <b>Error:</b> Could not generate data for this region. Please try again later.");
+    console.error("FakerAPI.it Error:", error);
+    await sendMessage(env, chatId, "❌ <b>Error:</b> Could not generate data for this region right now. Please try again.");
   }
 }
