@@ -15,8 +15,6 @@
     "wrangler": "^4.81.1"
   },
   "dependencies": {
-	"@faker-js/faker": "^10.4.0",
-	"grammy": "^1.42.0",
 	"hono": "^4.12.12"
   }
 }
