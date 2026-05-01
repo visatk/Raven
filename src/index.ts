@@ -1,40 +1,43 @@
 import { Hono } from 'hono';
 import { webhookCallback } from 'grammy';
 import { drizzle } from 'drizzle-orm/d1';
-import { createBot } from './bot';
+import { setupBot } from './bot';
 import { Env, BotContext } from './types';
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.get('/', (c) => c.text('Edge-Native Bot Server is running.'));
-
-// Run this route ONCE after deployment to bind the webhook
-app.get('/setup', async (c) => {
-  const bot = createBot(c.env.BOT_TOKEN);
-  const url = new URL(c.req.url);
-  const webhookUrl = `${url.protocol}//${url.host}/webhook`;
-  
-  await bot.api.setWebhook(webhookUrl, { secret_token: c.env.WEBHOOK_SECRET });
-  
-  return c.json({ success: true, webhookUrl, status: "Secure webhook configured." });
-});
-
+// Webhook endpoint for Telegram
 app.post('/webhook', async (c) => {
-  const secretToken = c.req.header('X-Telegram-Bot-Api-Secret-Token');
-  if (secretToken !== c.env.WEBHOOK_SECRET) {
-    return c.json({ error: "Unauthorized access" }, 401);
-  }
+  const token = c.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return c.json({ error: 'Missing Bot Token' }, 500);
 
-  const bot = createBot(c.env.BOT_TOKEN);
-  
+  const bot = setupBot(token);
+
+  // Inject bindings into the grammY context BEFORE processing
   bot.use(async (ctx: BotContext, next) => {
     ctx.env = c.env;
     ctx.db = drizzle(c.env.DB);
     await next();
   });
 
-  const handleUpdate = webhookCallback(bot, 'hono');
-  return handleUpdate(c);
+  // Adapt grammY's webhook callback to work with Hono
+  const handler = webhookCallback(bot, 'hono');
+  return handler(c);
+});
+
+// Setup route to easily register the webhook with Telegram
+app.get('/setup', async (c) => {
+  const url = new URL(c.req.url);
+  const webhookUrl = `${url.protocol}//${url.host}/webhook`;
+  
+  const response = await fetch(`https://api.telegram.org/bot${c.env.TELEGRAM_BOT_TOKEN}/setWebhook?url=${webhookUrl}`);
+  const data = await response.json();
+  
+  return c.json({
+    status: 'Webhook configured',
+    webhookUrl,
+    telegramResponse: data
+  });
 });
 
 export default app;
