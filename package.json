@@ -8,19 +8,13 @@
     "start": "wrangler dev",
     "test": "vitest",
     "cf-typegen": "wrangler types",
-	"db:generate": "drizzle-kit generate",
-	"db:migrate": "wrangler d1 migrations apply atlas --remote"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-	"@faker-js/faker": "^10.4.0",
     "typescript": "^5.5.2",
-	"drizzle-kit": "^0.31.10",
     "wrangler": "^4.81.1"
   },
   "dependencies": {
-	"hono": "^4.12.12",
-	"drizzle-orm": "^0.45.2",
-	"grammy": "^1.42.0"
+	"hono": "^4.12.12"
   }
 }
