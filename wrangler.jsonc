@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "raven",
+	"name": "ravenhq",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-04-29",
 	"compatibility_flags": [
